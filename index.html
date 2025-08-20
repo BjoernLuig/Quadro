@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vierer-Schub – 6×6</title>
+  <style>
+    :root {
+      --bg: #0f1320;
+      --panel: #171b2a;
+      --grid: #222841;
+      --accent: #6ea8fe;
+      --accent-2: #a6e3a1;
+      --text: #e7e9f1;
+      --muted: #9aa0b4;
+      --black: #1f1f1f;
+      --white: #fafafa;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --cell: 68px; /* Zellen-Größe */
+      --gap: 8px;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(1000px 700px at 20% 10%, #1b2140 0%, var(--bg) 60%);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    .app {
+      width: min(96vw, 880px);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, var(--panel), #121624);
+      padding: 18px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(255,255,255,.06);
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin: 0 0 10px;
+      letter-spacing: .3px;
+    }
+
+    .status {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+      line-height: 1.3;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.08);
+      font-weight: 600;
+      letter-spacing: .2px;
+    }
+    .dot {
+      width: 14px; height: 14px; border-radius: 50%;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.35);
+    }
+    .dot.black { background: var(--black); }
+    .dot.white { background: var(--white); }
+
+    .controls {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    button {
+      appearance: none; border: none; cursor: pointer;
+      padding: 10px 14px; border-radius: 10px;
+      font-weight: 700; letter-spacing: .2px;
+      background: #26305b; color: var(--text);
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 4px 14px rgba(0,0,0,.2);
+      transition: transform .04s ease, filter .15s ease, background .2s ease;
+    }
+    button:hover { filter: brightness(1.08); }
+    button:active { transform: translateY(1px); }
+    button.secondary { background: #29304a; font-weight: 600; }
+    button.ghost {
+      background: transparent; border: 1px dashed rgba(255,255,255,.2); font-weight: 600;
+    }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+
+    /* Brett */
+    .board {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(6, var(--cell));
+      grid-template-rows: repeat(6, var(--cell));
+      gap: var(--gap);
+      padding: var(--gap);
+      background: linear-gradient(180deg, #131a35, #0e1326);
+      border-radius: calc(var(--radius) + 4px);
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: var(--shadow);
+      user-select: none;
+      touch-action: manipulation;
+    }
+    .cell {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: var(--cell); height: var(--cell);
+      background: linear-gradient(180deg, #1a2246, #161c38);
+      border-radius: 12px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), inset 0 6px 16px rgba(255,255,255,.04);
+      border: 1px solid rgba(0,0,0,.2);
+      transition: transform .06s ease, filter .15s ease, box-shadow .15s ease;
+    }
+    .cell.empty:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .stone {
+      width: 64%; height: 64%;
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 2px rgba(0,0,0,.4), 0 8px 18px rgba(0,0,0,.35);
+    }
+    .stone.black {
+      background: radial-gradient(circle at 30% 30%, #3b3b3b, #151515 70%);
+    }
+    .stone.white {
+      background: radial-gradient(circle at 30% 30%, #ffffff, #cfcfcf 70%);
+    }
+    .cell.highlight { outline: 2px dashed var(--accent); outline-offset: -3px; }
+    .cell.blocked { opacity: .55; filter: grayscale(.3); }
+
+    /* Richtungs-Pfeile beim Schieben */
+    .arrows {
+      position: absolute; inset: 0; pointer-events: none;
+    }
+    .arrow-btn {
+      position: absolute;
+      pointer-events: auto;
+      width: 30px; height: 30px; border-radius: 8px;
+      display: grid; place-items: center;
+      background: rgba(110,168,254,.14);
+      border: 1px solid rgba(110,168,254,.5);
+      backdrop-filter: blur(4px);
+      font-size: 18px;
+    }
+    .arrow-btn:hover { filter: brightness(1.15); }
+    .arrow-up    { top: -6px; left: 50%; transform: translate(-50%,-50%); }
+    .arrow-down  { bottom: -6px; left: 50%; transform: translate(-50%,50%); }
+    .arrow-left  { left: -6px; top: 50%; transform: translate(-50%,-50%); }
+    .arrow-right { right: -6px; top: 50%; transform: translate(50%,-50%); }
+
+    .log {
+      max-height: 260px; overflow: auto; padding-right: 4px;
+      font-size: 0.92rem; color: var(--muted);
+    }
+    .winner {
+      color: var(--accent-2);
+      font-weight: 800;
+    }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      :root { --cell: 56px; }
+      .app { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="panel">
+      <h1>Vierer-Schub – 6×6</h1>
+      <div class="status" id="status"></div>
+      <div class="controls">
+        <button id="undoBtn" class="secondary" title="Letzten Zug rückgängig machen (Z)" disabled>↶ Undo</button>
+        <button id="resetBtn" class="ghost" title="Neues Spiel (R)">⟲ Reset</button>
+      </div>
+      <div class="log" id="log" aria-live="polite"></div>
+    </div>
+
+    <div id="board" class="board" role="grid" aria-label="6x6 Spielbrett"></div>
+  </div>
+
+  <script>
+    // --- Spielkonstanten ---
+    const SIZE = 6;
+    const EMPTY = 0, BLACK = 1, WHITE = 2;
+    const DIRS = { up: [-1,0], down: [1,0], left: [0,-1], right: [0,1] };
+
+    // --- Zustand ---
+    let board = createEmptyBoard();
+    let current = BLACK;         // Schwarz beginnt (kannst du auf WHITE ändern)
+    let phase = 'place';         // 'place' -> 'push' -> nächster Spieler
+    let selectedPush = null;     // {r,c} des gegnerischen Steins zum Schieben
+    let history = [];            // für Undo
+    let winner = null;           // 1=Schwarz, 2=Weiß, null=kein Sieger
+
+    // --- DOM ---
+    const boardEl = document.getElementById('board');
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const undoBtn = document.getElementById('undoBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    undoBtn.addEventListener('click', undo);
+    resetBtn.addEventListener('click', resetGame);
+    window.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'z') undo();
+      if (e.key.toLowerCase() === 'r') resetGame();
+    });
+
+    // --- Initiales Rendering ---
+    renderAll();
+
+    // ===== Hilfsfunktionen =====
+    function createEmptyBoard() {
+      return Array.from({length: SIZE}, () => Array(SIZE).fill(EMPTY));
+    }
+
+    function cloneState() {
+      return {
+        board: board.map(row => row.slice()),
+        current, phase, selectedPush: selectedPush ? {...selectedPush} : null, winner
+      };
+    }
+    function pushHistory() {
+      history.push(cloneState());
+      undoBtn.disabled = history.length === 0;
+    }
+    function undo() {
+      if (!history.length) return;
+      const prev = history.pop();
+      board = prev.board;
+      current = prev.current;
+      phase = prev.phase;
+      selectedPush = prev.selectedPush;
+      winner = prev.winner;
+      renderAll();
+      log(`↶ Zug rückgängig gemacht.`);
+      undoBtn.disabled = history.length === 0;
+    }
+    function resetGame() {
+      board = createEmptyBoard();
+      current = BLACK;
+      phase = 'place';
+      selectedPush = null;
+      history = [];
+      winner = null;
+      renderAll();
+      logEl.innerHTML = '';
+      log(`Neues Spiel gestartet. Schwarz beginnt.`);
+      undoBtn.disabled = true;
+    }
+
+    function other(player) { return player === BLACK ? WHITE : BLACK; }
+    function playerName(p) { return p === BLACK ? 'Schwarz' : 'Weiß'; }
+
+    function inBounds(r,c){ return r>=0 && r<SIZE && c>=0 && c<SIZE; }
+
+    // Wincheck: nur horizontal/vertikal, Vier-in-einer-Reihe
+    function hasFourInRow(p) {
+      // horizontal
+      for (let r=0;r<SIZE;r++){
+        let run=0;
+        for (let c=0;c<SIZE;c++){
+          run = (board[r][c]===p) ? run+1 : 0;
+          if (run>=4) return true;
+        }
+      }
+      // vertikal
+      for (let c=0;c<SIZE;c++){
+        let run=0;
+        for (let r=0;r<SIZE;r++){
+          run = (board[r][c]===p) ? run+1 : 0;
+          if (run>=4) return true;
+        }
+      }
+      return false;
+    }
+
+    // Ermittelt legale Schubrichtungen für den gegnerischen Stein an (r,c)
+    function legalPushDirsForCell(r, c) {
+      const cell = board[r][c];
+      if (cell !== other(current)) return []; // nur gegnerische Steine
+      const dirs = [];
+      for (const [name, delta] of Object.entries(DIRS)) {
+        const [dr, dc] = delta;
+        // Prüfe Linie in Richtung (dr,dc): Schub nur legal, wenn Randfeld leer ist
+        // -> wir laufen vom Rand in Gegenrichtung, oder einfacher:
+        // checke das letzte Feld entlang der Richtung
+        let rr = r, cc = c;
+        // vor dem Stein weitergehen bis zum Rand
+        while (inBounds(rr+dr, cc+dc)) { rr += dr; cc += dc; }
+        // rr,cc ist Randfeld in Schubrichtung. Muss leer sein, damit niemand 'runterfällt'.
+        if (board[rr][cc] === EMPTY && !(rr===r && cc===c)) {
+          // es gibt mindestens ein Feld zum Rutschen
+          dirs.push(name);
+        }
+      }
+      return dirs;
+    }
+
+    // Führt den Schub durch: verschiebt gesamte Linie um 1 in Richtung dir
+    function applyPush(r, c, dirName) {
+      const [dr, dc] = DIRS[dirName];
+      // Finde Endpunkt am Rand in Schubrichtung
+      let endR = r, endC = c;
+      while (inBounds(endR+dr, endC+dc)) { endR += dr; endC += dc; }
+
+      // Sicherheit: Endfeld muss leer sein (sonst illegal)
+      if (board[endR][endC] !== EMPTY) return false;
+
+      // Wir schieben von Ende nach Anfang
+      let curR = endR, curC = endC;
+      while (!(curR === r && curC === c)) {
+        const prevR = curR - dr, prevC = curC - dc;
+        board[curR][curC] = board[prevR][prevC];
+        curR = prevR; curC = prevC;
+      }
+      // Ursprungsfeld des geschobenen Steins wird leer
+      board[r][c] = EMPTY;
+      return true;
+    }
+
+    // Gibt es irgendeinen legalen Schub (nach aktuellem Setzen)?
+    function anyLegalPushAvailable() {
+      for (let r=0;r<SIZE;r++){
+        for (let c=0;c<SIZE;c++){
+          if (board[r][c] === other(current) && legalPushDirsForCell(r,c).length) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // ===== Rendering & Interaktion =====
+    function renderAll() {
+      renderStatus();
+      renderBoard();
+      undoBtn.disabled = history.length === 0;
+    }
+
+    function renderStatus() {
+      const turnBadge = `<span class="badge"><span class="dot ${current===BLACK?'black':'white'}"></span> Am Zug: ${playerName(current)}</span>`;
+      const phaseText = phase === 'place'
+        ? 'Setze einen Stein auf ein leeres Feld.'
+        : (selectedPush
+           ? `Wähle eine Richtung, um den <strong>${playerName(other(current)).toLowerCase()}</strong>-Stein zu schieben.`
+           : `Wähle einen <strong>${playerName(other(current)).toLowerCase()}</strong>-Stein zum Schieben.`);
+      const winText = winner
+        ? `<div class="winner">🏆 ${playerName(winner)} gewinnt!</div>`
+        : '';
+      statusEl.innerHTML = `
+        <div class="row">${turnBadge}</div>
+        <div>${phaseText}</div>
+        ${winText}
+      `;
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML = ''; // clear
+      for (let r=0;r<SIZE;r++){
+        for (let c=0;c<SIZE;c++){
+          const val = board[r][c];
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.setAttribute('role','gridcell');
+          cell.dataset.r = r; cell.dataset.c = c;
+
+          if (val === EMPTY) {
+            cell.classList.add('empty');
+            if (!winner && phase === 'place') {
+              cell.addEventListener('click', () => onPlace(r,c));
+            }
+          } else {
+            const stone = document.createElement('div');
+            stone.className = 'stone ' + (val===BLACK?'black':'white');
+            cell.appendChild(stone);
+          }
+
+          // In Push-Phase: gegnerische Steine klickbar + legale Richtungen anzeigen
+          if (!winner && phase === 'push' && board[r][c] === other(current)) {
+            const dirs = legalPushDirsForCell(r,c);
+
+            if (dirs.length) {
+              cell.classList.add('highlight');
+              cell.addEventListener('click', () => { selectedPush = {r,c}; renderAll(); });
+            } else {
+              cell.classList.add('blocked');
+            }
+
+            if (selectedPush && selectedPush.r===r && selectedPush.c===c) {
+              const overlay = document.createElement('div');
+              overlay.className = 'arrows';
+              cell.appendChild(overlay);
+
+              for (const d of dirs) {
+                const btn = document.createElement('button');
+                btn.className = 'arrow-btn arrow-' + d;
+                btn.type = 'button';
+                btn.title = `Schieben: ${d}`;
+                btn.textContent = d==='up'?'↑':d==='down'?'↓':d==='left'?'←':'→';
+                btn.addEventListener('click', (ev) => {
+                  ev.stopPropagation();
+                  onPush(r,c,d);
+                });
+                overlay.appendChild(btn);
+              }
+            }
+          }
+
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+
+    function onPlace(r,c) {
+      if (winner || phase!=='place') return;
+      if (board[r][c] !== EMPTY) return;
+
+      pushHistory();
+      board[r][c] = current;
+      log(`${playerName(current)} setzt auf ${coord(r,c)}.`);
+
+      // in die Push-Phase wechseln
+      selectedPush = null;
+      phase = 'push';
+
+      // Falls kein legaler Schub existiert, endet der Zug sofort.
+      if (!anyLegalPushAvailable()) {
+        endTurn('Kein legaler Schub möglich – Zug endet nach dem Setzen.');
+        return;
+      }
+      renderAll();
+    }
+
+    function onPush(r,c,dirName) {
+      if (winner || phase!=='push') return;
+
+      pushHistory();
+      const ok = applyPush(r,c,dirName);
+      if (!ok) {
+        // sollte eigentlich nie passieren, da wir nur legale Richtungen anzeigen
+        history.pop(); // rückgängig, da nichts passiert
+        log(`❌ Illegaler Schub von ${coord(r,c)} nach ${dirName}.`);
+        return;
+      }
+      log(`${playerName(current)} schiebt Stein bei ${coord(r,c)} nach ${dirNameSymbol(dirName)}.`);
+
+      endTurn();
+    }
+
+    function endTurn(reason=null) {
+      // Sieg nur am Ende des eigenen Zuges prüfen
+      if (hasFourInRow(current)) {
+        winner = current;
+        phase = 'done';
+        renderAll();
+        log(`🏆 ${playerName(current)} hat vier in einer Reihe!`);
+        return;
+      }
+
+      // Optional: Vollbrett = Unentschieden (wenn niemand mehr setzen kann)
+      const anyEmpty = board.flat().some(x => x===EMPTY);
+      if (!anyEmpty) {
+        winner = 0; // Remis
+        phase = 'done';
+        renderAll();
+        log(`½–½ Remis: Brett voll.`);
+        return;
+      }
+
+      // Nächster Spieler
+      current = other(current);
+      phase = 'place';
+      selectedPush = null;
+      renderAll();
+      if (reason) log(`ℹ️ ${reason}`);
+    }
+
+    // ===== UI-Utilities =====
+    function coord(r,c){ return `(${r+1},${c+1})`; }
+    function dirNameSymbol(d){ return d==='up'?'↑':d==='down'?'↓':d==='left'?'←':'→'; }
+    function log(msg){
+      const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      logEl.innerHTML = `<div>[${time}] ${msg}</div>` + logEl.innerHTML;
+    }
+  </script>
+</body>
+</html>
